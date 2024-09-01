@@ -3,7 +3,8 @@ from django.db import transaction
 from django.db.models import Avg
 from rest_framework import serializers
 from .signals import order_created
-from .models import Cart, CartItem, Customer, Order, OrderItem, Product, Collection, Review, ProductImage, Vendor
+from .models import Cart, CartItem, Customer, Order, OrderItem, Product, Collection, Review, ProductImage, Vendor, \
+    VendorImage
 
 
 class CollectionSerializer(serializers.ModelSerializer):
@@ -120,12 +121,21 @@ class UpdateCartItemSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = ['quantity']
 
+class VendorImageSerializer(serializers.ModelSerializer):
+    def create(self, validated_data):
+        vendor_id = self.context["vendor_id"]
+        return VendorImage.objects.create(vendor_id=vendor_id, **validated_data)
+
+    class Meta:
+        model = VendorImage
+        fields = ["id", "image"]
+
 class VendorSerializer(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Vendor
-        fields = ['id', 'name', 'email', 'phone', 'shop_name', 'shop_description', 'shop_address', 'average_rating']
+        fields = ['id', 'name', 'email', 'phone','images', 'shop_name', 'shop_description', 'shop_address', 'average_rating']
 
     def get_average_rating(self, obj):
         return obj.average_rating()

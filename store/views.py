@@ -12,10 +12,11 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from rest_framework import status
 from .filters import ProductFilter
-from .models import Cart, CartItem, Collection, Customer, Order, OrderItem, Product, Review, ProductImage, Vendor
+from .models import Cart, CartItem, Collection, Customer, Order, OrderItem, Product, Review, ProductImage, Vendor, \
+    VendorImage
 from .serializers import AddCartItemSerializer, CartItemSerializer, CartSerializer, CollectionSerializer, \
     CreateOrderSerializer, CustomerSerializer, OrderSerializer, ProductSerializer, ReviewSerializer, \
-    UpdateCartItemSerializer, UpdateOrderSerializer, ProductImageSerializer, VendorSerializer
+    UpdateCartItemSerializer, UpdateOrderSerializer, ProductImageSerializer, VendorSerializer, VendorImageSerializer
 
 
 class ProductViewSet(ModelViewSet):
@@ -87,8 +88,9 @@ class CartItemViewSet(ModelViewSet):
             .filter(cart_id=self.kwargs['cart_pk']) \
             .select_related('product')
 
+
 class VendorViewSet(ModelViewSet):
-    queryset = Vendor.objects.all()
+    queryset = Vendor.objects.prefetch_related("images").all()
     serializer_class = VendorSerializer
 
     @action(detail=True, methods=['get'], url_path='products')
@@ -174,3 +176,13 @@ class ProductImageViewSet(ModelViewSet):
     
     def get_queryset(self):
         return ProductImage.objects.filter(product_id = self.kwargs['product_pk'])
+
+
+class VendorImageViewSet(ModelViewSet):
+    serializer_class = VendorImageSerializer
+
+    def get_serializer_context(self):
+        return {'vendor_id': self.kwargs['vendor_pk']}
+
+    def get_queryset(self):
+        return VendorImage.objects.filter(vendor_id=self.kwargs['vendor_pk'])

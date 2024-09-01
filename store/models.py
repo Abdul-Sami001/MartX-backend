@@ -43,6 +43,11 @@ class Vendor(models.Model):
         return self.shop_name
 
 
+class VendorImage(models.Model):
+    vendor = models.ForeignKey(Vendor, related_name='images', on_delete= models.CASCADE)
+    image = models.ImageField(upload_to = r'store\images/vendors', validators = [validate_file_size])
+
+
 class Product(models.Model):
     title = models.CharField(max_length=255)
     slug = models.SlugField()
