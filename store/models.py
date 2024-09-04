@@ -117,6 +117,8 @@ class Order(models.Model):
             ('cancel_order', 'Can cancel order')
         ]
 
+    def calculate_total_amount(self):
+        return sum(item.unit_price * item.quantity for item in self.items.all())  # Calculate total from OrderItems
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name='items')

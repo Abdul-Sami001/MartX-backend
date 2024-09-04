@@ -17,7 +17,8 @@ from .models import Cart, CartItem, Collection, Customer, Order, OrderItem, Prod
 from .serializers import AddCartItemSerializer, CartItemSerializer, CartSerializer, CollectionSerializer, \
     CreateOrderSerializer, CustomerSerializer, OrderSerializer, ProductSerializer, ReviewSerializer, \
     UpdateCartItemSerializer, UpdateOrderSerializer, ProductImageSerializer, VendorSerializer, VendorImageSerializer
-
+import logging
+from store.models import Customer
 
 class ProductViewSet(ModelViewSet):
     queryset = Product.objects.prefetch_related("images").all()
@@ -123,30 +124,54 @@ class CustomerViewSet(ModelViewSet):
             return Response(serializer.data)
 
 
+
+
+logger = logging.getLogger(__name__)
+
+from rest_framework import status
+from rest_framework.response import Response
+from .models import Customer, Cart, CartItem, Order
+
+
 class OrderViewSet(ModelViewSet):
     http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
     def get_permissions(self):
-        if self.request.method in ['PATCH', 'DELETE']:
+        # Allow all users to create an order (POST), but keep authentication for PATCH, DELETE
+        if self.request.method == 'POST':
+            return [AllowAny()]  # Disable authentication for creating orders temporarily
+        elif self.request.method in ['PATCH', 'DELETE']:
             return [IsAdminUser()]
-        return [IsAuthenticated()]
+        return [IsAuthenticated()]  # Default to requiring authentication for other requests
 
     def create(self, request, *args, **kwargs):
+        # Use request.data.get for the user ID temporarily (until authentication is re-enabled)
+        user_id = request.data.get('user_id', None)
+
+        # Optionally, check if a user_id is provided in the request data
+        if not user_id:
+            return Response({'error': 'user_id is required for this operation'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Proceed with the rest of your logic to handle the order creation
         serializer = CreateOrderSerializer(
             data=request.data,
-            context={'user_id': self.request.user.id})
+            context={'user_id': user_id})  # Use provided user_id temporarily
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
 
         # Trigger the payment creation via signal
-
-        amount = sum(item.unit_price * item.quantity for item in order.items.all())
-        Payment.objects.create(
+        total_amount = order.calculate_total_amount()
+        payment, created = Payment.objects.get_or_create(
             order=order,
-            amount=amount,
-            status=Payment.PENDING,
-            payment_method='stripe'  # This could be dynamic based on the user’s choice
+            defaults={
+                'amount': total_amount,
+                'status': Payment.PENDING,
+                'payment_method': 'stripe'  # This could be dynamic based on the user’s choice
+            }
         )
+
+        if not created:
+            print(f"Payment for Order {order.id} already exists.")
 
         serializer = OrderSerializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -160,13 +185,14 @@ class OrderViewSet(ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-
         if user.is_staff:
             return Order.objects.all()
 
-        customer_id = Customer.objects.only(
-            'id').get(user_id=user.id)
+        # If user is not staff, return orders for the authenticated user (later you can re-enable this)
+        customer_id = Customer.objects.only('id').get(user_id=user.id)
         return Order.objects.filter(customer_id=customer_id)
+
+
 
 class ProductImageViewSet(ModelViewSet):
     serializer_class = ProductImageSerializer

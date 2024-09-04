@@ -1,6 +1,12 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 import stripe
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.utils import json
+
+from store.models import Order
 from .models import Payment
 from django.conf import settings
 
@@ -39,3 +45,31 @@ def stripe_webhook(request):
         payment.order.save()
 
     return JsonResponse({'status': 'success'}, status=200)
+
+
+@csrf_exempt
+@api_view(['POST'])
+def create_payment_intent(request):
+    try:
+        order_id = request.data.get('order_id')
+        if not order_id:
+            return Response({'error': 'Order ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Retrieve the order and calculate total amount
+        order = Order.objects.get(id=order_id)
+        total_amount = order.calculate_total_amount() * 100  # Convert to cents for Stripe
+
+        # Create a PaymentIntent with Stripe
+        intent = stripe.PaymentIntent.create(
+            amount=int(total_amount),  # Amount in cents
+            currency='usd',
+            metadata={'order_id': order_id}
+        )
+
+        return Response({
+            'clientSecret': intent['client_secret']
+        })
+    except Order.DoesNotExist:
+        return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
