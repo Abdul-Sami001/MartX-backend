@@ -66,6 +66,7 @@ def create_payment_intent(request):
             metadata={'order_id': order_id}
         )
 
+
         return Response({
             'clientSecret': intent['client_secret']
         })

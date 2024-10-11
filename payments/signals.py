@@ -12,9 +12,9 @@ def create_payment_for_order(sender, **kwargs):
     order = kwargs['order']
 
     # Check if a payment already exists for this order
-    if Payment.objects.filter(order=order).exists():
-        print(f"Payment already exists for Order {order.id}")
-        return  # Exit the signal handler if a payment already exists
+    # if Payment.objects.filter(order=order).exists():
+    #     print(f"Payment already exists for Order {order.id}")
+    #     return  # Exit the signal handler if a payment already exists
 
     # Calculate the total amount
     amount = sum(item.unit_price * item.quantity for item in order.items.all())

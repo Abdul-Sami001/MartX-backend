@@ -2,7 +2,9 @@ from django.urls import path
 from django.urls.conf import include
 from rest_framework_nested import routers
 from . import views
-from .views import VendorViewSet
+from .views import VendorViewSet, GuestOrderView
+from .views import VendorOrderViewSet
+
 
 router = routers.DefaultRouter()
 router.register('products', views.ProductViewSet, basename='products')
@@ -24,6 +26,8 @@ carts_router.register('items', views.CartItemViewSet, basename='cart-items')
 
 vendors_router = routers.NestedDefaultRouter(router, 'vendors', lookup='vendor')
 vendors_router.register('images', views.VendorImageViewSet, basename='vendor-images')
-
+router.register('vendor/orders', VendorOrderViewSet, basename='vendor-orders')
 # URLConf
-urlpatterns = router.urls + products_router.urls + carts_router.urls + vendors_router.urls
+urlpatterns = router.urls + products_router.urls + carts_router.urls + vendors_router.urls + [
+    path('guest-orders/', GuestOrderView.as_view(), name='guest-orders'),  # Add guest order retrieval as a direct URL
+]
