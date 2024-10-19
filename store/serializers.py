@@ -193,6 +193,8 @@ class CreateOrderSerializer(serializers.Serializer):
     country = serializers.CharField(required=False)
     postal_code = serializers.CharField(required=False)
 
+    # Add payment method field
+    payment_method = serializers.ChoiceField(choices=['stripe', 'cod'], write_only=True, required=True)
     def validate(self, data):
         # Ensure either cart_id or product_id is provided
         if not data.get('cart_id') and not data.get('product_id'):
@@ -214,6 +216,7 @@ class CreateOrderSerializer(serializers.Serializer):
             cart_id = self.validated_data.get('cart_id')
             product_id = self.validated_data.get('product_id')
             quantity = self.validated_data.get('quantity', 1)
+            payment_method = self.validated_data.get('payment_method')  # Get payment method from request
             user = self.context.get('user')
 
             User = get_user_model()
@@ -260,18 +263,18 @@ class CreateOrderSerializer(serializers.Serializer):
 
             # For single product purchase, create a new order for the user and product
             elif product_id:
-                existing_orders = Order.objects.filter(
-                    customer=customer,
-                    items__product_id=product_id
-                ).distinct()
+                # existing_orders = Order.objects.filter(
+                #     customer=customer,
+                #     items__product_id=product_id
+                # ).distinct()
 
-                if not existing_orders.exists():
-                    product = Product.objects.get(pk=product_id)
-                    order = Order.objects.create(customer=customer)
-                    OrderItem.objects.create(order=order, product=product, unit_price=product.unit_price,
+                # if not existing_orders.exists():
+                product = Product.objects.get(pk=product_id)
+                order = Order.objects.create(customer=customer)
+                OrderItem.objects.create(order=order, product=product, unit_price=product.unit_price,
                                              quantity=quantity)
-                else:
-                    order = existing_orders.first()
+                # else:
+                #     order = existing_orders.first()
 
             # Step 3: Handle payment creation or retry logic
             existing_payment = Payment.objects.filter(order=order).first()
@@ -282,15 +285,22 @@ class CreateOrderSerializer(serializers.Serializer):
                 else:
                     # Retry payment if pending or failed
                     existing_payment.status = Payment.PENDING
+                    existing_payment.payment_method = payment_method
                     existing_payment.save()
                     payment = existing_payment
             else:
                 # Create a new payment
+                if payment_method == 'cod':
+                    payment_status = Payment.PENDING  # Set COD payments as 'pending'
+                else:
+                    payment_status = Payment.PENDING  # Default for 'stripe' or other methods
+
+
                 payment = Payment.objects.create(
                     order=order,
                     amount=order.calculate_total_amount(),
-                    status=Payment.PENDING,
-                    payment_method='stripe'  # Can be changed dynamically based on user's choice
+                    status=payment_status,
+                    payment_method=payment_method # Can be changed dynamically based on user's choice
                 )
 
             # Step 4: Trigger order_created signal (if needed)
@@ -303,6 +313,10 @@ class AuthenticatedOrderSerializer(serializers.Serializer):
     cart_id = serializers.UUIDField(required=False)
     product_id = serializers.IntegerField(required=False)
     quantity = serializers.IntegerField(default=1)
+
+
+    # Add payment method field
+    payment_method = serializers.ChoiceField(choices=['stripe', 'cod'], write_only=True, required=True)
 
     def validate(self, data):
         if not data.get('cart_id') and not data.get('product_id'):
@@ -339,11 +353,17 @@ class AuthenticatedOrderSerializer(serializers.Serializer):
             OrderItem.objects.create(order=order, product=product, unit_price=product.unit_price, quantity=quantity)
 
         # Handle payment creation
+        payment_method = self.validated_data.get('payment_method')
+        if payment_method == 'cod':
+            payment_status = Payment.PENDING
+        else:
+            payment_status = Payment.PENDING
+
         payment = Payment.objects.create(
             order=order,
             amount=order.calculate_total_amount(),
-            status=Payment.PENDING,
-            payment_method='stripe'  # Change if necessary
+            status=payment_status,
+            payment_method=payment_method  # Change if necessary
         )
 
         # Trigger the order_created signal
@@ -362,6 +382,9 @@ class GuestOrderSerializer(serializers.Serializer):
     city = serializers.CharField(required=True)
     country = serializers.CharField(required=True)
     postal_code = serializers.CharField(required=True)
+
+    # Add payment method field
+    payment_method = serializers.ChoiceField(choices=['stripe', 'cod'], write_only=True, required=True)
 
     def validate(self, data):
         if not data.get('cart_id') and not data.get('product_id'):
@@ -402,11 +425,17 @@ class GuestOrderSerializer(serializers.Serializer):
             OrderItem.objects.create(order=order, product=product, unit_price=product.unit_price, quantity=quantity)
 
         # Handle payment creation
+        payment_method = self.validated_data.get('payment_method')
+        if payment_method == 'cod':
+            payment_status = Payment.PENDING  # COD payments are initially pending
+        else:
+            payment_status = Payment.PENDING  # Set for 'stripe' or other methods
+
         payment = Payment.objects.create(
             order=order,
             amount=order.calculate_total_amount(),
-            status=Payment.PENDING,
-            payment_method='stripe'  # Can be changed dynamically based on user's choice
+            status=payment_status,
+            payment_method=payment_method  # Can be changed dynamically based on user's choice
         )
 
         # Trigger the order_created signal

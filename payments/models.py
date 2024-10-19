@@ -13,7 +13,7 @@ class Payment(models.Model):
         (FAILED, 'Failed'),
     ]
 
-    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='payment')
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING)
     payment_method = models.CharField(max_length=50, default='stripe')  # e.g., 'Stripe', 'PayPal'

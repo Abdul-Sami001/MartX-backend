@@ -94,7 +94,7 @@ class CartItemViewSet(ModelViewSet):
 
 
 class VendorViewSet(ModelViewSet):
-    queryset = Vendor.objects.prefetch_related("images").all()
+    queryset = Vendor.objects.filter(is_verified=True).prefetch_related("images").all()
     serializer_class = VendorSerializer
 
     @action(detail=True, methods=['get'], url_path='products')
@@ -136,6 +136,71 @@ from rest_framework.response import Response
 from .models import Customer, Cart, CartItem, Order
 
 
+# class OrderViewSet(ModelViewSet):
+#     http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+#
+#     def get_permissions(self):
+#         if self.request.method in ['PATCH', 'DELETE']:
+#             return [IsAdminUser()]
+#         elif self.request.method == 'POST':
+#             return [AllowAny()]  # Allow both authenticated and unauthenticated users to create an order
+#         return [IsAuthenticated()]  # Ensure users are authenticated for GET requests
+#
+#     def create(self, request, *args, **kwargs):
+#         # Decide which serializer to use based on whether the user is authenticated or not
+#         if request.user.is_authenticated:
+#             serializer = AuthenticatedOrderSerializer(
+#                 data=request.data,
+#                 context={'user': request.user}
+#             )
+#         else:
+#             serializer = GuestOrderSerializer(
+#                 data=request.data,
+#                 context={'request': request}
+#             )
+#
+#         # Validate the data
+#         serializer.is_valid(raise_exception=True)
+#
+#         # Save the order (this will handle the logic of both authenticated and guest users)
+#         order = serializer.save()
+#
+#         # Check if a payment already exists for this order
+#         existing_payment = Payment.objects.filter(order=order).first()
+#
+#         if existing_payment:
+#             # If payment exists and is COMPLETED, return an error
+#             if existing_payment.status == Payment.COMPLETED:
+#                 return Response({'error': f"Payment for Order {order.id} has already been completed."},
+#                                 status=status.HTTP_400_BAD_REQUEST)
+#             else:
+#                 # If payment exists but is PENDING or FAILED, allow retry by updating its status
+#                 existing_payment.status = Payment.PENDING  # or keep FAILED for retry handling
+#                 existing_payment.save()
+#                 payment = existing_payment  # Reuse the existing payment for the retry
+#         else:
+#             # Create a new payment if no payment exists
+#             total_amount = order.calculate_total_amount()  # Make sure this method exists on your model
+#             payment = Payment.objects.create(
+#                 order=order,
+#                 amount=total_amount,
+#                 status=Payment.PENDING,
+#                 payment_method='stripe'  # This could be dynamic based on the user’s choice
+#             )
+#
+#         # Serialize the order for response
+#         serializer = OrderSerializer(order)
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
+#
+#     def get_serializer_class(self):
+#         if self.request.method == 'POST':
+#             if self.request.user.is_authenticated:
+#                 return AuthenticatedOrderSerializer
+#             else:
+#                 return GuestOrderSerializer
+#         elif self.request.method == 'PATCH':
+#             return UpdateOrderSerializer
+#         return OrderSerializer
 class OrderViewSet(ModelViewSet):
     http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
@@ -165,28 +230,25 @@ class OrderViewSet(ModelViewSet):
         # Save the order (this will handle the logic of both authenticated and guest users)
         order = serializer.save()
 
-        # Check if a payment already exists for this order
-        existing_payment = Payment.objects.filter(order=order).first()
+        # Get payment method from the request
+        payment_method = request.data.get('payment_method', 'stripe')  # Default to 'stripe' if not provided
 
-        if existing_payment:
-            # If payment exists and is COMPLETED, return an error
-            if existing_payment.status == Payment.COMPLETED:
-                return Response({'error': f"Payment for Order {order.id} has already been completed."},
-                                status=status.HTTP_400_BAD_REQUEST)
-            else:
-                # If payment exists but is PENDING or FAILED, allow retry by updating its status
-                existing_payment.status = Payment.PENDING  # or keep FAILED for retry handling
-                existing_payment.save()
-                payment = existing_payment  # Reuse the existing payment for the retry
+        if payment_method.lower() == 'cod':
+            # If the payment method is Cash on Delivery (COD)
+            payment_status = Payment.PENDING  # COD payments are typically marked as 'pending' initially
+            payment_method = 'COD'
         else:
-            # Create a new payment if no payment exists
-            total_amount = order.calculate_total_amount()  # Make sure this method exists on your model
-            payment = Payment.objects.create(
-                order=order,
-                amount=total_amount,
-                status=Payment.PENDING,
-                payment_method='stripe'  # This could be dynamic based on the user’s choice
-            )
+            # For other payment methods like Stripe, default to 'stripe' logic
+            payment_status = Payment.PENDING  # Adjust as needed
+
+        # Create a new payment record for the order
+        total_amount = order.calculate_total_amount()  # Ensure this method exists in your Order model
+        payment = Payment.objects.create(
+            order=order,
+            amount=total_amount,
+            status=payment_status,
+            payment_method=payment_method
+        )
 
         # Serialize the order for response
         serializer = OrderSerializer(order)
@@ -201,7 +263,6 @@ class OrderViewSet(ModelViewSet):
         elif self.request.method == 'PATCH':
             return UpdateOrderSerializer
         return OrderSerializer
-
     def get_queryset(self):
         user = self.request.user
 
