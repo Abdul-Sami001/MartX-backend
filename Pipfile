@@ -18,6 +18,7 @@ redis = "*"
 stripe = "*"
 django-environ = "*"
 requests = "*"
+psycopg2-binary = "*"
 
 [dev-packages]
 autopep8 = "*"

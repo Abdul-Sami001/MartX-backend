@@ -139,11 +139,16 @@ class VendorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Vendor
-        fields = ['id', 'name', 'email', 'phone','images', 'shop_name', 'shop_description', 'shop_address', 'average_rating']
+        fields = ['id', 'name','user', 'email', 'phone','images', 'shop_name', 'shop_description', 'shop_address', 'average_rating']
 
     def get_average_rating(self, obj):
         return obj.average_rating()
 
+    def validate_user(self, value):
+        # Ensure the user is not already associated with a vendor
+        if Vendor.objects.filter(user=value).exists():
+            raise serializers.ValidationError("This user is already linked to a vendor.")
+        return value
 
 class CustomerSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(read_only=True)

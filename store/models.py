@@ -70,8 +70,8 @@ class Product(models.Model):
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, related_name='images', on_delete= models.CASCADE)
-    image = models.ImageField(upload_to = r'store\images', validators = [validate_file_size])
-
+    #image = models.ImageField(upload_to = r'store\images', validators = [validate_file_size])
+    image = models.URLField(max_length=500)
 
 class Customer(models.Model):
     phone = models.CharField(max_length=20)

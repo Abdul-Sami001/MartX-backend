@@ -5,15 +5,22 @@ import uuid
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('store', '0006_auto_20210903_1318'),
     ]
 
     operations = [
-        migrations.AlterField(
-            model_name='cart',
-            name='id',
-            field=models.UUIDField(default=uuid.uuid4, primary_key=True, serialize=False),
+        # Step 1: Drop the 'store_cart' table (WARNING: this will delete all existing data)
+        migrations.DeleteModel(
+            name='Cart',
+        ),
+
+        # Step 2: Recreate the 'store_cart' table with a UUID primary key
+        migrations.CreateModel(
+            name='Cart',
+            fields=[
+                ('id', models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
         ),
     ]

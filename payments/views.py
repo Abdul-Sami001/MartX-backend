@@ -60,6 +60,7 @@ def create_payment_intent(request):
         total_amount = order.calculate_total_amount() * 100  # Convert to cents for Stripe
 
         # Create a PaymentIntent with Stripe
+        print(stripe.api_key)
         intent = stripe.PaymentIntent.create(
             amount=int(total_amount),  # Amount in cents
             currency='usd',

@@ -97,6 +97,17 @@ class VendorViewSet(ModelViewSet):
     queryset = Vendor.objects.filter(is_verified=True).prefetch_related("images").all()
     serializer_class = VendorSerializer
 
+    def create(self, request, *args, **kwargs):
+        user_id = request.data.get('user')
+        if not user_id:
+            return Response({'error': 'User field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the user is already linked to a vendor
+        if Vendor.objects.filter(user_id=user_id).exists():
+            return Response({'error': 'This user is already linked to a vendor.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return super().create(request, *args, **kwargs)
+
     @action(detail=True, methods=['get'], url_path='products')
     def list_products(self, request, pk=None):
         vendor = self.get_object()
@@ -306,7 +317,7 @@ class VendorImageViewSet(ModelViewSet):
 
 class GuestOrderView(APIView):
     """
-    This view allows guest users to retrieve their order details using order_id and email.
+    This view allows guest users to retrieve their order details using order_id or email.
     No authentication required.
     """
     permission_classes = []  # No authentication required
@@ -315,18 +326,25 @@ class GuestOrderView(APIView):
         order_id = request.data.get('order_id')
         email = request.data.get('email')
 
-        if not order_id or not email:
-            return Response({"error": "Order ID and email are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not order_id and not email:
+            return Response({"error": "Either Order ID or email is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Retrieve the order by ID and check if the associated customer has the provided email
-            order = Order.objects.get(id=order_id, customer__user__email=email)
+            # Retrieve the order based on order_id or email
+            if order_id:
+                order = Order.objects.get(id=order_id)
+            elif email:
+                order = Order.objects.filter(customer__user__email=email).first()  # Get the first matching order
+
+            # If order is not found
+            if not order:
+                return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
             # Serialize the order details
             serializer = OrderSerializer(order)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
-            return Response({"error": "Order not found or email does not match."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
 
